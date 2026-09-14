@@ -2,14 +2,41 @@
 @tailwind components;
 @tailwind utilities;
 
-bolt-badge, [class*="bolt"], #bolt-badge, .bolt-badge {
-  position: fixed !important;
-  bottom: 4px !important;
-  left: 4px !important;
-  z-index: 1 !important;
-  opacity: 0.35 !important;
-  pointer-events: auto !important;
+@layer base {
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  html {
+    font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  }
+  body {
+    @apply bg-ink-100 text-ink-800;
+  }
+  ::selection {
+    @apply bg-primary-200 text-primary-800;
+  }
 }
-bolt-badge:hover, [class*="bolt"]:hover, #bolt-badge:hover, .bolt-badge:hover {
-  opacity: 0.9 !important;
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.ink.300') transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-ink-300 rounded-full;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-400;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }

@@ -1,101 +1,114 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://bszwdzqlcosjumsnctdo.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJzendkenFsY29zanVtc25jdGRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMTMyMjMsImV4cCI6MjEwNDg4OTIyM30.JpgJDKITdQPxVgkXbbRKLeMm4NXfXB2FHFyn0nr18po';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    storageKey: 'impulso-auth',
+  },
+});
 
-export type Lancamento = {
-  id: number;
-  data_lancamento: string;
-  data_vencimento: string;
-  tipo: 'Credito' | 'Debito';
-  codigo_banco: number | null;
-  codigo_fornecedor: number | null;
-  valor: number;
-  created_at?: string;
-  updated_at?: string;
-};
+export type LinkStatus = 'ready' | 'pending' | 'sent';
+export type GroupStatus = 'active' | 'paused';
+export type SendStatus = 'sent' | 'failed' | 'skipped';
 
-export type LancamentoForm = Omit<Lancamento, 'id' | 'created_at' | 'updated_at'>;
-
-export type Banco = { id: number; codigo: number; nome: string };
-
-export type Fornecedor = {
-  id: number;
-  codigo: number;
-  nome: string;
-  codigo_classificacao?: number | null;
-};
-
-export type Classificacao = { codigo: number; nome: string; ativo: boolean };
-
-export type BackupLog = {
-  id: number;
-  nome: string;
-  tipo: string;
-  tamanho_kb: number;
-  criado_por: string;
+export interface AffiliateLink {
+  id: string;
+  url: string;
+  title: string;
+  category: string | null;
+  image_url: string | null;
+  price: number | null;
+  status: LinkStatus;
   created_at: string;
-};
+  item_id: string | null;
+  store_name: string | null;
+  commission_rate: string | null;
+  commission: number | null;
+  sales: number | null;
+  product_url: string | null;
+}
 
-export type UsuarioApp = {
+export interface WhatsappGroup {
+  id: string;
+  name: string;
+  url: string | null;
+  category: string | null;
+  status: GroupStatus;
+  created_at: string;
+  telegram_chat_id: string | null;
+}
+
+export interface MessageTemplate {
+  id: string;
+  name: string;
+  content: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface SendLogEntry {
+  id: string;
+  link_id: string | null;
+  group_id: string | null;
+  template_id: string | null;
+  message_text: string;
+  status: SendStatus;
+  sent_at: string;
+}
+
+export interface SendLogWithDetails extends SendLogEntry {
+  link_title?: string | null;
+  link_url?: string | null;
+  group_name?: string | null;
+}
+
+export interface AppSettings {
   id: number;
-  nome: string;
-  senha_hash: string;
-  deve_trocar_senha: boolean;
-  ativo: boolean;
-};
+  max_sends_per_group_per_day: number;
+  delay_seconds: number;
+  store_name: string;
+  affiliate_tag: string | null;
+  telegram_bot_token: string | null;
+  vitrine_logo_url: string | null;
+  vitrine_hero_url: string | null;
+}
 
-export type Permissao = {
-  id: number;
-  usuario_id: number;
-  menu: string;
-  permitido: boolean;
-};
+export interface ProductData {
+  image_url: string | null;
+  price: number | null;
+}
 
-export type UsuarioFornecedor = {
-  id: number;
-  usuario_id: number;
-  codigo_fornecedor: number;
-};
+/** Busca imagem e preço de um produto via edge function (segue redirects e extrai og:image + preço) */
+export async function fetchProductData(url: string): Promise<ProductData> {
+  try {
+    const functionUrl = `${supabaseUrl}/functions/v1/fetch-product-image`;
+    const resp = await fetch(functionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ url }),
+    });
+    const data = await resp.json().catch(() => null);
+    if (resp.ok) {
+      return {
+        image_url: data?.image_url ?? null,
+        price: data?.price != null ? Number(data.price) : null,
+      };
+    }
+    return { image_url: null, price: null };
+  } catch {
+    return { image_url: null, price: null };
+  }
+}
 
-export type CupomVenda = {
-  num_cupom: number;
-  data_emissao: string | null;
-  id_cliente: number | null;
-  nome_cliente: string | null;
-  id_operador: number | null;
-  nome_usuario: string | null;
-  status: string | null;
-  hora: string | null;
-  vr_total_cupom: number | null;
-  vr_pago: number | null;
-  vr_recebido: number | null;
-  vr_troco: number | null;
-  codigo_finalizadora: number | null;
-  nome_finalizadora: string | null;
-  vr_finalizadora: number | null;
-  id_nfce_numero: number | null;
-  id_nfce_serie: string | null;
-  cp_serie: string | null;
-  created_at?: string;
-};
-
-export type CupomItem = {
-  id?: number;
-  num_cupom: number;
-  codigo: number | null;
-  posicao: number | null;
-  cod_interno: string | null;
-  produto: string | null;
-  unidade: string | null;
-  vr_venda: number | null;
-  quantidade: number | null;
-  vr_total: number | null;
-  cancelado: string | null;
-  created_at?: string;
-};
-
-export const MENUS = ['lancamentos', 'gerencial', 'bancos', 'fornecedores', 'classificacoes', 'usuarios', 'manutencao', 'importacao'] as const;
-export type MenuKey = typeof MENUS[number];
+/** Compat: busca apenas a imagem */
+export async function fetchProductImage(url: string): Promise<string | null> {
+  const data = await fetchProductData(url);
+  return data.image_url;
+}
