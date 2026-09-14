@@ -126,7 +126,10 @@ export default function LoginPage({ onLogin }: Props) {
   const inputCls = 'w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all bg-gray-50';
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #1a4a1a 0%, #2d6a2d 50%, #1a4a1a 100%)' }}>
+    <div className="min-h-screen flex items-center justify-center p-4" 
+         <!--style={{ background: 'linear-gradient(135deg, #1a4a1a 0%, #2d6a2d 50%, #1a4a1a 100%)' }}-->
+         style={{ background: 'linear-gradient(135deg, #1a2f5c 0%, #2d4a8a 50%, #1a2f5c 100%)' }}
+>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
         {/* Header with logo */}
         <div className="px-6 py-6 text-center" style={{ background: 'linear-gradient(135deg, #1e5c1e 0%, #2d7a2d 100%)' }}>
