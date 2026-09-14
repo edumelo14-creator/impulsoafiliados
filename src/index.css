@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+bolt-badge, [class*="bolt"], #bolt-badge, .bolt-badge {
+  position: fixed !important;
+  bottom: 4px !important;
+  left: 4px !important;
+  z-index: 1 !important;
+  opacity: 0.35 !important;
+  pointer-events: auto !important;
+}
+bolt-badge:hover, [class*="bolt"]:hover, #bolt-badge:hover, .bolt-badge:hover {
+  opacity: 0.9 !important;
+}
