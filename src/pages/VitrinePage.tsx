@@ -121,7 +121,7 @@ export function VitrinePage() {
       {/* Hero Section — vibrant, colorful, full-width */}
       <header className="relative overflow-hidden">
         {/* Background image — recortada: só a metade superior */}
-        <div className="absolute inset-x-0 top-0 aspect-[3/1] overflow-hidden">
+        <div className="absolute inset-x-0 top-0 aspect-[10/1] overflow-hidden">
           <img
             src={heroSrc}
             alt=""
