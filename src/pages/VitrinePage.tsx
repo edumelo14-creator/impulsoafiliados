@@ -119,89 +119,74 @@ export function VitrinePage() {
 
   return (
     <div className="min-h-screen bg-ink-50">
-      {/* Hero Section — vibrant, colorful, full-width */}
-      <header className="relative overflow-hidden">
-        {/* Background image — proporção igual à do banner, sem cortar */}
-        <div className="absolute inset-x-0 top-0 aspect-[1024/572] overflow-hidden">
-          <img
-            src={heroSrc}
-            alt=""
-            className="h-full w-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-              (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-            }}
-          />
-          <div className="hidden h-full w-full bg-gradient-to-br from-primary-500 via-primary-700 to-accent-700" />
-        </div>
+      {/* Hero Section — altura igual à do banner, conteúdo em uma linha só */}
+      <header className="relative aspect-[1024/572] w-full overflow-hidden shadow-lg">
+        {/* Background image — preenche o cabeçalho inteiro, sem sobra */}
+        <img
+          src={heroSrc}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none';
+            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+          }}
+        />
+        <div className="hidden absolute inset-0 h-full w-full bg-gradient-to-br from-primary-500 via-primary-700 to-accent-700" />
 
-        {/* Colorful overlay gradients */}
-        <div className="absolute inset-0 bg-gradient-to-t from-ink-900/90 via-ink-900/55 to-ink-900/25" />
+        {/* Sombra apenas na base, pra legibilidade do nome/cards sem escurecer o banner todo */}
+        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-ink-900/85 to-transparent" />
 
-        {/* Decorative blobs — more color */}
-        <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-accent-400/30 blur-3xl" />
-        <div className="pointer-events-none absolute -left-16 top-10 h-64 w-64 rounded-full bg-warning-400/25 blur-3xl" />
-        <div className="pointer-events-none absolute right-1/3 bottom-0 h-56 w-56 rounded-full bg-primary-400/20 blur-3xl" />
-
-        {/* Top bar — share */}
-        <div className="relative z-10 flex items-center justify-end px-4 py-5 sm:px-8">
+        {/* Compartilhar — canto superior direito */}
+        <div className="absolute right-3 top-3 z-10 sm:right-5 sm:top-4">
           <button
             onClick={copyShareLink}
-            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-accent-500/80 to-accent-600/80 px-4 py-2 text-xs font-bold text-white backdrop-blur-md transition-all hover:from-accent-400 hover:to-accent-500 hover:shadow-lg hover:shadow-accent-500/30"
+            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-accent-500/80 to-accent-600/80 px-3 py-1.5 text-[11px] font-bold text-white backdrop-blur-md transition-all hover:from-accent-400 hover:to-accent-500 hover:shadow-lg hover:shadow-accent-500/30 sm:px-4 sm:py-2 sm:text-xs"
           >
-            {copied ? <><Check size={15} /> Link copiado!</> : <><Share2 size={15} /> Compartilhar vitrine</>}
+            {copied ? <><Check size={14} /> Link copiado!</> : <><Share2 size={14} /> Compartilhar</>}
           </button>
         </div>
 
-        {/* Logo + Store name + badges */}
-        <div className="relative z-10 px-4 pb-12 pt-4 text-center sm:px-8 sm:pb-20 sm:pt-6">
-          <div className="flex flex-col items-center gap-5">
-            {logoUrl ? (
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-2xl ring-4 ring-white/30 sm:h-28 sm:w-28">
-                <img src={logoUrl} alt={storeName} className="h-full w-full object-cover" />
-              </div>
-            ) : (
-              <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-white/25 to-white/10 shadow-2xl ring-4 ring-white/30 backdrop-blur-md sm:h-28 sm:w-28">
-                <ShoppingBag size={40} className="text-white" />
-              </div>
-            )}
-            <div>
-              <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-2xl sm:text-5xl">
-                {storeName}
-              </h1>
-              <p className="mt-3 flex items-center justify-center gap-2 text-sm font-semibold text-white/90 sm:text-lg">
-                <Sparkles size={18} className="text-warning-300" />
-                {productCount > 0
-                  ? `${productCount} produtos selecionados para você`
-                  : 'Em breve, novidades por aqui'}
-              </p>
+        {/* Ícone + nome + cards — tudo em uma única linha, alinhados à base */}
+        <div className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 overflow-x-auto px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-4">
+          {logoUrl ? (
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-xl ring-2 ring-white/40 sm:h-14 sm:w-14 sm:rounded-2xl sm:ring-4">
+              <img src={logoUrl} alt={storeName} className="h-full w-full object-cover" />
             </div>
+          ) : (
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-white/25 to-white/10 shadow-xl ring-2 ring-white/40 backdrop-blur-md sm:h-14 sm:w-14 sm:rounded-2xl sm:ring-4">
+              <ShoppingBag size={18} className="text-white sm:hidden" />
+              <ShoppingBag size={24} className="hidden text-white sm:block" />
+            </div>
+          )}
 
-            {/* Colorful stat badges */}
-            {productCount > 0 && (
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                <div className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary-500/90 to-primary-600/90 px-4 py-2 backdrop-blur-md shadow-lg">
-                  <Flame size={16} className="text-white" />
-                  <span className="text-sm font-bold text-white">{productCount} produtos</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-accent-500/90 to-accent-600/90 px-4 py-2 backdrop-blur-md shadow-lg">
-                  <LayoutGrid size={16} className="text-white" />
-                  <span className="text-sm font-bold text-white">{categoryCount} categorias</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-success-500/90 to-success-600/90 px-4 py-2 backdrop-blur-md shadow-lg">
-                  <Package size={16} className="text-white" />
-                  <span className="text-sm font-bold text-white">Ofertas ativas</span>
-                </div>
+          <h1 className="flex-shrink-0 whitespace-nowrap text-base font-extrabold tracking-tight text-white drop-shadow-2xl sm:text-2xl">
+            {storeName}
+          </h1>
+
+          {productCount > 0 ? (
+            <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
+              <div className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-primary-500/90 to-primary-600/90 px-2 py-1 backdrop-blur-md shadow-lg sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-1.5">
+                <Flame size={12} className="text-white sm:hidden" />
+                <Flame size={14} className="hidden text-white sm:block" />
+                <span className="whitespace-nowrap text-[10px] font-bold text-white sm:text-xs">{productCount} produtos</span>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Wave separator */}
-        <div className="relative z-10">
-          <svg viewBox="0 0 1440 80" className="w-full" preserveAspectRatio="none" style={{ height: '48px' }}>
-            <path d="M0,40 C320,80 480,0 720,30 C960,60 1120,10 1440,40 L1440,80 L0,80 Z" fill="rgb(248 250 252)" />
-          </svg>
+              <div className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-accent-500/90 to-accent-600/90 px-2 py-1 backdrop-blur-md shadow-lg sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-1.5">
+                <LayoutGrid size={12} className="text-white sm:hidden" />
+                <LayoutGrid size={14} className="hidden text-white sm:block" />
+                <span className="whitespace-nowrap text-[10px] font-bold text-white sm:text-xs">{categoryCount} categorias</span>
+              </div>
+              <div className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-success-500/90 to-success-600/90 px-2 py-1 backdrop-blur-md shadow-lg sm:gap-1.5 sm:rounded-xl sm:px-3 sm:py-1.5">
+                <Package size={12} className="text-white sm:hidden" />
+                <Package size={14} className="hidden text-white sm:block" />
+                <span className="whitespace-nowrap text-[10px] font-bold text-white sm:text-xs">Ofertas ativas</span>
+              </div>
+            </div>
+          ) : (
+            <p className="flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-semibold text-white/90 sm:text-sm">
+              <Sparkles size={14} className="text-warning-300" />
+              Em breve, novidades por aqui
+            </p>
+          )}
         </div>
       </header>
 
