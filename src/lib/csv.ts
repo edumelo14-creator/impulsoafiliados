@@ -13,6 +13,23 @@ export interface ParsedCsvRow {
 /**
  * Parseia uma linha CSV respeitando aspas duplas e vírgulas dentro de campos.
  * Campos entre aspas podem conter vírgulas; aspas internas são escapadas como "".
+ *
+ * Também protege vírgulas decimais no formato brasileiro (ex.: "3.587,91" ou
+ * "R$1,80") mesmo quando o campo NÃO está entre aspas — o export de afiliados
+ * da Shopee frequentemente não coloca aspas em colunas monetárias como Price e
+ * Commission, e uma vírgula "solta" ali quebra o alinhamento de todas as
+ * colunas seguintes daquela linha (o que fazia o preço importado vir errado,
+ * às vezes pegando um pedaço de outra coluna, como a taxa de comissão).
+ * Regra: uma vírgula fora de aspas NÃO separa campos quando (a) o campo
+ * acumulado até ali é puramente numérico/monetário (só dígitos, pontos e um
+ * "R$" opcional — ainda sem nenhuma vírgula mesclada) e (b) ela é seguida por
+ * exatamente 2 dígitos que não continuam com mais dígitos — o padrão de
+ * centavos em pt-BR (dinheiro sempre tem 2 casas decimais). A condição (a) é
+ * essencial: sem ela, uma vírgula real de separação de campo seguida por um
+ * campo qualquer de 2 dígitos (ex.: a coluna "Sales" com valor "50") seria
+ * incorretamente engolida também. Depois de mesclar uma vírgula decimal, o
+ * campo passa a conter uma vírgula e (a) deixa de valer, então uma segunda
+ * vírgula no mesmo campo nunca é mesclada.
  */
 function parseCsvLine(line: string): string[] {
   const fields: string[] = [];
@@ -37,8 +54,15 @@ function parseCsvLine(line: string): string[] {
       if (char === '"') {
         inQuotes = true;
       } else if (char === ',') {
-        fields.push(current.trim());
-        current = '';
+        const isNumericSoFar = /^(R\$)?\s*\d+(\.\d+)*$/.test(current.trim());
+        const isDecimalComma =
+          isNumericSoFar && /^\d{2}(?!\d)/.test(line.slice(i + 1));
+        if (isDecimalComma) {
+          current += char;
+        } else {
+          fields.push(current.trim());
+          current = '';
+        }
       } else {
         current += char;
       }
@@ -61,32 +85,37 @@ function parseNumber(raw: string): number | null {
   return isNaN(num) ? null : num;
 }
 
+function isHeaderLine(line: string): boolean {
+  const lower = line.toLowerCase();
+  return (
+    lower.includes('item id') ||
+    lower.includes('item name') ||
+    lower.includes('offer link')
+  );
+}
+
 /**
  * Parseia o conteúdo CSV exportado do programa de afiliados Shopee.
  * Cabeçalho esperado:
  * Item Id,Item Name,Price,Sales,Nome da loja,Commission Rate,Commission,Product Link,Offer Link
  *
  * Também aceita texto com apenas URLs (um por linha) para compatibilidade.
+ *
+ * O conteúdo pode conter várias exportações coladas/anexadas em sequência
+ * (ex.: ao importar vários arquivos CSV de uma vez) — por isso uma linha de
+ * cabeçalho é ignorada onde quer que apareça, não só na primeira linha.
  */
 export function parseCsvContent(content: string): ParsedCsvRow[] {
   const lines = content
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+    .filter((l) => l.length > 0 && !isHeaderLine(l));
 
   if (lines.length === 0) return [];
 
-  // Detecta se a primeira linha é cabeçalho
-  const firstLine = lines[0].toLowerCase();
-  const hasHeader =
-    firstLine.includes('item id') ||
-    firstLine.includes('item name') ||
-    firstLine.includes('offer link');
-
-  const startIndex = hasHeader ? 1 : 0;
   const rows: ParsedCsvRow[] = [];
 
-  for (let i = startIndex; i < lines.length; i++) {
+  for (let i = 0; i < lines.length; i++) {
     const fields = parseCsvLine(lines[i]);
 
     // Se a linha tem só 1 campo e parece URL, trata como importação simples

@@ -516,25 +516,45 @@ function ImportTxtModal({ onClose, onSaved }: { onClose: () => void; onSaved: ()
     }
   }
 
+  function readFileAsText(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => resolve(String(ev.target?.result ?? ''));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
+
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setText(String(ev.target?.result ?? ''));
-    };
-    reader.readAsText(file);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const fileList = Array.from(files);
+
+    Promise.all(fileList.map(readFileAsText))
+      .then((contents) => {
+        const combined = contents
+          .map((c) => c.trim())
+          .filter(Boolean)
+          .join('\n');
+        setText((prev) => (prev.trim() ? `${prev.trim()}\n${combined}` : combined));
+      })
+      .catch(() => {
+        setErr('Não foi possível ler um ou mais arquivos selecionados.');
+      });
+
+    // limpa o input para permitir selecionar os mesmos arquivos novamente
+    e.target.value = '';
   }
 
   return (
     <Modal title="Importar links" onClose={onClose}>
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-ink-500">
-          Cole o conteúdo do CSV exportado do programa de afiliados Shopee, ou envie o arquivo.
+          Cole o conteúdo do CSV exportado do programa de afiliados Shopee, ou envie um ou vários arquivos.
         </p>
         <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-ink-200 bg-white px-3 py-2 text-xs font-semibold text-ink-600 transition-colors hover:bg-ink-50">
-          <FileUp size={16} /> Enviar arquivo
-          <input type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
+          <FileUp size={16} /> Enviar arquivo(s)
+          <input type="file" accept=".csv,.txt" multiple onChange={handleFileUpload} className="hidden" />
         </label>
       </div>
 
