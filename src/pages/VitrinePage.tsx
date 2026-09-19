@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useLinks, useSettings } from '@/hooks/useData';
 import { formatBRL } from '@/lib/format';
+import { registerVisit, logLinkClick } from '@/lib/tracking';
 import type { AffiliateLink } from '@/lib/supabase';
 
 export function VitrinePage() {
@@ -38,6 +39,10 @@ export function VitrinePage() {
   useEffect(() => {
     document.title = `${settings?.store_name ?? 'Vitrine'} | Ofertas`;
   }, [settings?.store_name]);
+
+  useEffect(() => {
+    registerVisit();
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -483,6 +488,7 @@ function OfferModal({ link, onClose }: { link: AffiliateLink; onClose: () => voi
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => logLinkClick({ id: link.id, title: link.title, url: link.url })}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-primary-600/25 transition-all hover:from-primary-600 hover:to-primary-700 hover:shadow-primary-600/40"
             >
               <ShoppingBag size={18} /> Comprar

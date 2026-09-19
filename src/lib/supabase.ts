@@ -82,6 +82,30 @@ export interface ProductData {
   price: number | null;
 }
 
+export interface VitrineVisitante {
+  visitor_id: string;
+  first_visit_at: string;
+  last_visit_at: string;
+  visit_count: number;
+  cidade: string | null;
+  regiao: string | null;
+  pais: string | null;
+  user_agent: string | null;
+}
+
+export type VitrineEventoTipo = 'pageview' | 'click';
+
+export interface VitrineEvento {
+  id: number;
+  visitor_id: string;
+  tipo: VitrineEventoTipo;
+  link_id: string | null;
+  link_titulo: string | null;
+  link_url: string | null;
+  cidade: string | null;
+  criado_em: string;
+}
+
 /** Busca imagem e preço de um produto via edge function (segue redirects e extrai og:image + preço) */
 export async function fetchProductData(url: string): Promise<ProductData> {
   try {

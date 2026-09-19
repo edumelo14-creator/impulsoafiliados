@@ -8,9 +8,10 @@ import {
   Send as TelegramIcon,
   Sparkles,
   Settings,
+  BarChart3,
 } from 'lucide-react';
 
-export type PageId = 'dashboard' | 'links' | 'groups' | 'messages' | 'send' | 'vitrine';
+export type PageId = 'dashboard' | 'links' | 'groups' | 'messages' | 'send' | 'vitrine' | 'visitas';
 
 interface SidebarProps {
   current: PageId;
@@ -26,6 +27,7 @@ const navItems: { id: PageId; label: string; icon: ReactNode }[] = [
   { id: 'messages', label: 'Mensagens', icon: <MessageSquare size={20} /> },
   { id: 'send', label: 'Envios', icon: <Send size={20} /> },
   { id: 'vitrine', label: 'Vitrine', icon: <Sparkles size={20} /> },
+  { id: 'visitas', label: 'Visitas', icon: <BarChart3 size={20} /> },
 ];
 
 export function Sidebar({ current, onNavigate, counts }: SidebarProps) {

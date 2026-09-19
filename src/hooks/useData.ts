@@ -7,6 +7,8 @@ import type {
   SendLogEntry,
   SendLogWithDetails,
   AppSettings,
+  VitrineVisitante,
+  VitrineEvento,
 } from '@/lib/supabase';
 
 export function useSupabaseQuery<T>(
@@ -180,6 +182,29 @@ export async function logSend(
   return { error: error?.message ?? null };
 }
 
+export function useVisitantes() {
+  return useSupabaseQuery(async () => {
+    const { data, error } = await supabase
+      .from('vitrine_visitantes')
+      .select('*')
+      .order('last_visit_at', { ascending: false });
+    if (error) return { data: null, error };
+    return { data: data as VitrineVisitante[], error: null };
+  }, []);
+}
+
+export function useEventosVitrine(limit = 300) {
+  return useSupabaseQuery(async () => {
+    const { data, error } = await supabase
+      .from('vitrine_eventos')
+      .select('*')
+      .order('criado_em', { ascending: false })
+      .limit(limit);
+    if (error) return { data: null, error };
+    return { data: data as VitrineEvento[], error: null };
+  }, [limit]);
+}
+
 export type {
   AffiliateLink,
   WhatsappGroup,
@@ -187,4 +212,6 @@ export type {
   SendLogEntry,
   SendLogWithDetails,
   AppSettings,
+  VitrineVisitante,
+  VitrineEvento,
 };

@@ -9,6 +9,7 @@ import { Messages } from '@/pages/Messages';
 import { SendPage } from '@/pages/SendPage';
 import { Vitrine } from '@/pages/Vitrine';
 import { VitrinePage } from '@/pages/VitrinePage';
+import { Visitas } from '@/pages/Visitas';
 import { Login } from '@/pages/Login';
 import { useLinks, useGroups } from '@/hooks/useData';
 import { useAuth } from '@/hooks/useAuth';
@@ -38,6 +39,10 @@ const pageInfo: Record<PageId, { title: string; subtitle: string }> = {
   vitrine: {
     title: 'Vitrine',
     subtitle: 'Sua página pública de ofertas para compartilhar',
+  },
+  visitas: {
+    title: 'Visitas',
+    subtitle: 'Quem visitou sua vitrine, de onde e no que clicou',
   },
 };
 
@@ -149,6 +154,7 @@ function App() {
             {page === 'messages' && <Messages />}
             {page === 'send' && <SendPage />}
             {page === 'vitrine' && <Vitrine />}
+            {page === 'visitas' && <Visitas />}
           </div>
         </main>
       </div>
