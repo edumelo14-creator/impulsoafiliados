@@ -125,7 +125,7 @@ export function VitrinePage() {
   return (
     <div className="min-h-screen bg-ink-50">
       {/* Hero Section — altura igual à do banner, conteúdo em uma linha só */}
-      <header className="relative aspect-[1024/572] w-full overflow-hidden shadow-lg">
+      <header className="relative aspect-[1024/412] w-full overflow-hidden shadow-lg">
         {/* Background image — preenche o cabeçalho inteiro, sem sobra */}
         <img
           src={heroSrc}
