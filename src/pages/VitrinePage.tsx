@@ -109,7 +109,8 @@ export function VitrinePage() {
   }
 
   const storeName = settings?.store_name ?? 'Minha Loja';
-  const logoUrl = settings?.vitrine_logo_url;
+  const defaultLogo = '/images/vitrine/logo-ab.png';
+  const logoUrl = settings?.vitrine_logo_url ?? defaultLogo;
   const heroUrl = settings?.vitrine_hero_url;
   const defaultHero = '/images/vitrine/629997121_122105482725241898_8716204251637680679_n.png';
   const heroSrc = heroUrl ?? defaultHero;
@@ -120,12 +121,12 @@ export function VitrinePage() {
     <div className="min-h-screen bg-ink-50">
       {/* Hero Section — vibrant, colorful, full-width */}
       <header className="relative overflow-hidden">
-        {/* Background image — recortada: só a metade superior */}
-        <div className="absolute inset-x-0 top-0 aspect-[10/1] overflow-hidden">
+        {/* Background image — proporção igual à do banner, sem cortar */}
+        <div className="absolute inset-x-0 top-0 aspect-[1024/572] overflow-hidden">
           <img
             src={heroSrc}
             alt=""
-            className="h-full w-full object-cover object-top"
+            className="h-full w-full object-cover"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
               (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
