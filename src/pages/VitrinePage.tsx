@@ -124,8 +124,8 @@ export function VitrinePage() {
 
   return (
     <div className="min-h-screen bg-ink-50">
-      {/* Hero Section — altura igual à do banner, conteúdo em uma linha só */}
-      <header className="relative aspect-[1024/412] w-full overflow-hidden shadow-lg">
+      {/* Hero Section — altura reduzida em 40% em relação à proporção original do banner */}
+      <header className="relative aspect-[1024/247] w-full overflow-hidden shadow-lg">
         {/* Background image — preenche o cabeçalho inteiro, sem sobra */}
         <img
           src={heroSrc}
@@ -491,7 +491,7 @@ function OfferModal({ link, onClose }: { link: AffiliateLink; onClose: () => voi
               onClick={() => logLinkClick({ id: link.id, title: link.title, url: link.url })}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-primary-600/25 transition-all hover:from-primary-600 hover:to-primary-700 hover:shadow-primary-600/40"
             >
-              <ShoppingBag size={18} /> Comprar
+              <ShoppingBag size={18} /> Mais detalhes
             </a>
             <button
               onClick={onClose}
