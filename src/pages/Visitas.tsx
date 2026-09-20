@@ -32,8 +32,10 @@ export function Visitas() {
     const totalVisitantes = visitantes?.length ?? 0;
     const totalVisitas = (visitantes ?? []).reduce((s, v) => s + v.visit_count, 0);
     const retornaram = (visitantes ?? []).filter((v) => v.visit_count > 1).length;
-    const totalCliques = (eventos ?? []).filter((e) => e.tipo === 'click').length;
-    return { totalVisitantes, totalVisitas, retornaram, totalCliques };
+    const cliquesVerOferta = (eventos ?? []).filter((e) => e.tipo === 'click_ver_oferta').length;
+    const cliquesMaisDetalhes = (eventos ?? []).filter((e) => e.tipo === 'click_mais_detalhes').length;
+    const totalCliques = cliquesVerOferta + cliquesMaisDetalhes;
+    return { totalVisitantes, totalVisitas, retornaram, totalCliques, cliquesVerOferta, cliquesMaisDetalhes };
   }, [visitantes, eventos]);
 
   const porCidade = useMemo(() => {
@@ -50,7 +52,9 @@ export function Visitas() {
   const maxCidade = porCidade[0]?.[1] ?? 1;
 
   const cliquesRecentes = useMemo(() => {
-    return (eventos ?? []).filter((e) => e.tipo === 'click').slice(0, 12);
+    return (eventos ?? [])
+      .filter((e) => e.tipo === 'click_ver_oferta' || e.tipo === 'click_mais_detalhes')
+      .slice(0, 12);
   }, [eventos]);
 
   const eventosDoSelecionado = useMemo(() => {
@@ -61,7 +65,7 @@ export function Visitas() {
   return (
     <div className="space-y-6">
       {/* KPI cards */}
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
         <StatCard
           label="Visitantes únicos"
           value={formatNumber(stats.totalVisitantes)}
@@ -80,8 +84,23 @@ export function Visitas() {
           icon={<RotateCcw size={22} />}
           accent="success"
         />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
         <StatCard
-          label="Cliques em ofertas"
+          label="Cliques em \"Ver oferta\""
+          value={formatNumber(stats.cliquesVerOferta)}
+          icon={<Eye size={22} />}
+          accent="warning"
+        />
+        <StatCard
+          label="Cliques em \"Mais detalhes\""
+          value={formatNumber(stats.cliquesMaisDetalhes)}
+          icon={<ShoppingBag size={22} />}
+          accent="warning"
+        />
+        <StatCard
+          label="Cliques em ofertas (total)"
           value={formatNumber(stats.totalCliques)}
           icon={<MousePointerClick size={22} />}
           accent="warning"
@@ -178,6 +197,7 @@ export function Visitas() {
                     {e.link_titulo ?? 'Produto removido'}
                   </p>
                   <p className="truncate text-xs text-ink-400">
+                    {e.tipo === 'click_ver_oferta' ? 'Ver oferta' : 'Mais detalhes'} ·{' '}
                     {e.cidade ?? 'Cidade não identificada'} · {timeAgo(e.criado_em)}
                   </p>
                 </div>
@@ -212,7 +232,7 @@ function VisitanteModal({
   eventos: import('@/lib/supabase').VitrineEvento[];
   onClose: () => void;
 }) {
-  const cliques = eventos.filter((e) => e.tipo === 'click');
+  const cliques = eventos.filter((e) => e.tipo === 'click_ver_oferta' || e.tipo === 'click_mais_detalhes');
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 backdrop-blur-sm animate-scale-in p-4"
@@ -272,7 +292,10 @@ function VisitanteModal({
                     <p className="truncate text-sm font-medium text-ink-900">
                       {e.link_titulo ?? 'Produto removido'}
                     </p>
-                    <p className="truncate text-xs text-ink-400">{timeAgo(e.criado_em)}</p>
+                    <p className="truncate text-xs text-ink-400">
+                      {e.tipo === 'click_ver_oferta' ? 'Ver oferta' : 'Mais detalhes'} ·{' '}
+                      {timeAgo(e.criado_em)}
+                    </p>
                   </div>
                 </div>
               ))}

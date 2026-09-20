@@ -85,13 +85,18 @@ export async function registerVisit(): Promise<void> {
   }
 }
 
-/** Registra que o visitante clicou para comprar um produto. */
-export async function logLinkClick(link: { id: string; title: string; url: string }): Promise<void> {
+export type LinkClickTipo = 'click_ver_oferta' | 'click_mais_detalhes';
+
+/** Registra que o visitante clicou em uma oferta. `tipo` diferencia o clique no card ("Ver oferta") do clique dentro do modal ("Mais detalhes"). */
+export async function logLinkClick(
+  link: { id: string; title: string; url: string },
+  tipo: LinkClickTipo,
+): Promise<void> {
   try {
     const visitorId = getVisitorId();
     await supabase.from('vitrine_eventos').insert({
       visitor_id: visitorId,
-      tipo: 'click',
+      tipo,
       link_id: link.id,
       link_titulo: link.title,
       link_url: link.url,

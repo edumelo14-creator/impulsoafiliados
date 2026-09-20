@@ -385,7 +385,10 @@ export function VitrinePage() {
                       {link.title || 'Sem título'}
                     </p>
                     <button
-                      onClick={() => setSelected(link)}
+                      onClick={() => {
+                        logLinkClick({ id: link.id, title: link.title, url: link.url }, 'click_ver_oferta');
+                        setSelected(link);
+                      }}
                       className="mt-3 flex items-center justify-center gap-1.5 rounded-lg bg-primary-50 py-2 text-xs font-bold text-primary-700 transition-colors group-hover:bg-primary-600 group-hover:text-white"
                     >
                       Ver oferta <ArrowRight size={12} />
@@ -488,7 +491,7 @@ function OfferModal({ link, onClose }: { link: AffiliateLink; onClose: () => voi
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => logLinkClick({ id: link.id, title: link.title, url: link.url })}
+              onClick={() => logLinkClick({ id: link.id, title: link.title, url: link.url }, 'click_mais_detalhes')}
               className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary-500 to-primary-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-primary-600/25 transition-all hover:from-primary-600 hover:to-primary-700 hover:shadow-primary-600/40"
             >
               <ShoppingBag size={18} /> Mais detalhes

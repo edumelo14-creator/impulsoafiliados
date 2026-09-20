@@ -93,7 +93,7 @@ export interface VitrineVisitante {
   user_agent: string | null;
 }
 
-export type VitrineEventoTipo = 'pageview' | 'click';
+export type VitrineEventoTipo = 'pageview' | 'click_ver_oferta' | 'click_mais_detalhes';
 
 export interface VitrineEvento {
   id: number;
