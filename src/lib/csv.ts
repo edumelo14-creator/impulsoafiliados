@@ -20,16 +20,30 @@ export interface ParsedCsvRow {
  * Commission, e uma vírgula "solta" ali quebra o alinhamento de todas as
  * colunas seguintes daquela linha (o que fazia o preço importado vir errado,
  * às vezes pegando um pedaço de outra coluna, como a taxa de comissão).
- * Regra: uma vírgula fora de aspas NÃO separa campos quando (a) o campo
- * acumulado até ali é puramente numérico/monetário (só dígitos, pontos e um
- * "R$" opcional — ainda sem nenhuma vírgula mesclada) e (b) ela é seguida por
- * exatamente 2 dígitos que não continuam com mais dígitos — o padrão de
- * centavos em pt-BR (dinheiro sempre tem 2 casas decimais). A condição (a) é
- * essencial: sem ela, uma vírgula real de separação de campo seguida por um
- * campo qualquer de 2 dígitos (ex.: a coluna "Sales" com valor "50") seria
- * incorretamente engolida também. Depois de mesclar uma vírgula decimal, o
- * campo passa a conter uma vírgula e (a) deixa de valer, então uma segunda
- * vírgula no mesmo campo nunca é mesclada.
+ *
+ * A cada vírgula fora de aspas, olhamos se há um dígito colado imediatamente
+ * antes dela (ex.: em "...- 1," é o "1"; em "58207910598," é "58207910598")
+ * e se os 2 dígitos imediatamente depois batem com o padrão de centavos:
+ *
+ * - Se NÃO há dígito colado antes da vírgula → é separador de campo normal.
+ * - Se o campo acumulado até ali (sem contar um "R$" na frente) NÃO tem
+ *   nenhuma letra — ou seja, ainda parece só um número/moeda puro, como um
+ *   Item Id ou um Price — só tratamos a vírgula como decimal se os 2 dígitos
+ *   seguintes fecharem "limpo" em outra vírgula ou no fim da linha (ex.:
+ *   "3999,90," ou "R$1,80" no fim da linha), E somente se esse campo ainda
+ *   não tiver mesclado nenhuma vírgula decimal antes (dinheiro só tem uma
+ *   parte decimal). Isso evita dois bugs: (1) um nome de produto que começa
+ *   com número (ex.: "58207910598,10 Sacolinhas...") ser lido como se o "10"
+ *   fosse centavos do Item Id — depois dos 2 dígitos vem espaço, não
+ *   vírgula/fim, então não mescla; (2) um campo já mesclado tipo "1211,23"
+ *   engolir a vírgula seguinte e grudar o próximo campo ("1211,23,10" viraria
+ *   um valor só em vez de Price="1211,23" e Sales="10").
+ * - Se o campo já tem alguma letra (é claramente texto corrido, tipo um
+ *   título de produto) → mescla sempre que os 2 dígitos seguintes baterem,
+ *   mesmo que várias vezes no mesmo campo (ex.: "Estante ... - 1,50 X 1,90 X
+ *   0,30 ( 30 Nichos )" sem aspas: cada "N,NN" no meio do texto é protegido,
+ *   então o título inteiro continua sendo um único campo em vez de se
+ *   fragmentar em vários pedaços e desalinhar todas as colunas seguintes).
  */
 function parseCsvLine(line: string): string[] {
   const fields: string[] = [];
@@ -54,9 +68,21 @@ function parseCsvLine(line: string): string[] {
       if (char === '"') {
         inQuotes = true;
       } else if (char === ',') {
-        const isNumericSoFar = /^(R\$)?\s*\d+(\.\d+)*$/.test(current.trim());
-        const isDecimalComma =
-          isNumericSoFar && /^\d{2}(?!\d)/.test(line.slice(i + 1));
+        const hasDigitBefore = /\d$/.test(current);
+        let isDecimalComma = false;
+        if (hasDigitBefore) {
+          const rest = line.slice(i + 1);
+          const withoutMoneyPrefix = current.replace(/^\s*R\$/, '');
+          const isFreeText = /[A-Za-zÀ-ÿ]/.test(withoutMoneyPrefix);
+          if (isFreeText) {
+            // Texto corrido: protege qualquer "N,NN" embutido, quantas vezes aparecer.
+            isDecimalComma = /^\d{2}(?!\d)/.test(rest);
+          } else if (!current.includes(',')) {
+            // Ainda parece só número/moeda, e ainda não mesclou nenhuma
+            // vírgula decimal: só mescla se fechar limpo (vírgula ou fim).
+            isDecimalComma = /^\d{2}(?=,|$)/.test(rest);
+          }
+        }
         if (isDecimalComma) {
           current += char;
         } else {
@@ -95,6 +121,49 @@ function isHeaderLine(line: string): boolean {
 }
 
 /**
+ * Divide o conteúdo em "linhas" (registros) respeitando aspas — uma quebra
+ * de linha DENTRO de um campo entre aspas (ex.: um nome de produto colado
+ * com uma quebra de linha real no meio) não conta como fim de linha, senão
+ * aquele registro seria cortado ao meio e todas as colunas dali pra frente
+ * viriam desalinhadas. Um `content.split(/\r?\n/)` simples (usado antes)
+ * não tinha essa proteção.
+ */
+function splitCsvRecords(content: string): string[] {
+  const records: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (content[i + 1] === '"') {
+          current += '""';
+          i++;
+        } else {
+          inQuotes = false;
+          current += char;
+        }
+      } else {
+        current += char;
+      }
+    } else if (char === '"') {
+      inQuotes = true;
+      current += char;
+    } else if (char === '\n' || char === '\r') {
+      if (char === '\r' && content[i + 1] === '\n') i++;
+      if (current.trim().length > 0) records.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim().length > 0) records.push(current.trim());
+  return records;
+}
+
+/**
  * Parseia o conteúdo CSV exportado do programa de afiliados Shopee.
  * Cabeçalho esperado:
  * Item Id,Item Name,Price,Sales,Nome da loja,Commission Rate,Commission,Product Link,Offer Link
@@ -106,10 +175,7 @@ function isHeaderLine(line: string): boolean {
  * cabeçalho é ignorada onde quer que apareça, não só na primeira linha.
  */
 export function parseCsvContent(content: string): ParsedCsvRow[] {
-  const lines = content
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !isHeaderLine(l));
+  const lines = splitCsvRecords(content).filter((l) => !isHeaderLine(l));
 
   if (lines.length === 0) return [];
 
