@@ -88,13 +88,13 @@ export function Visitas() {
 
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-3">
         <StatCard
-          label="Cliques em \"Ver oferta\""
+          label={'Cliques em "Ver oferta"'}
           value={formatNumber(stats.cliquesVerOferta)}
           icon={<Eye size={22} />}
           accent="warning"
         />
         <StatCard
-          label="Cliques em \"Mais detalhes\""
+          label={'Cliques em "Mais detalhes"'}
           value={formatNumber(stats.cliquesMaisDetalhes)}
           icon={<ShoppingBag size={22} />}
           accent="warning"
