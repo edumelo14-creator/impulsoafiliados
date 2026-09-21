@@ -96,6 +96,34 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
   const delay = settings?.delay_seconds ?? 120;
   const maxPerGroup = settings?.max_sends_per_group_per_day ?? 3;
 
+  // processQueue roda como um loop assíncrono de longa duração — o closure
+  // dele fica "preso" nos valores de quando foi criado (quando o usuário
+  // clicou em "Iniciar envios"). Se as configurações ainda não tinham
+  // carregado do banco nesse momento (ex.: clicou logo que a página abriu),
+  // token/delay/maxPerGroup ficavam travados nos valores padrão pro resto
+  // da execução inteira — causando pulos incorretos mesmo com o limite
+  // configurado bem mais alto. Esses refs sempre guardam o valor mais
+  // recente, e o loop lê .current a cada iteração em vez do valor antigo.
+  const tokenRef = useRef(token);
+  const delayRef = useRef(delay);
+  const maxPerGroupRef = useRef(maxPerGroup);
+  const currentTemplateRef = useRef<MessageTemplate | undefined>(undefined);
+  const getCountRef = useRef(getCount);
+  const queueRef = useRef<QueueItem[]>([]);
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+  useEffect(() => {
+    delayRef.current = delay;
+  }, [delay]);
+  useEffect(() => {
+    maxPerGroupRef.current = maxPerGroup;
+  }, [maxPerGroup]);
+  useEffect(() => {
+    getCountRef.current = getCount;
+  }, [getCount]);
+
   // Atualiza log/contadores periodicamente quando não está enviando
   useEffect(() => {
     if (autoMode) return;
@@ -131,6 +159,13 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
     (templates ?? []).find((t) => t.id === templateId) ??
     (templates ?? []).find((t) => t.is_default) ??
     (templates ?? [])[0];
+
+  useEffect(() => {
+    currentTemplateRef.current = currentTemplate;
+  }, [currentTemplate]);
+  useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
 
   function addLog(level: LogEntry['level'], message: string) {
     const id = Math.random().toString(36).slice(2);
@@ -168,37 +203,50 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
   }
 
   async function processQueue() {
-    if (!token || !currentTemplate) {
+    // Lê sempre o valor mais recente (nunca o congelado no momento do clique).
+    const activeToken = tokenRef.current;
+    const activeTemplate = currentTemplateRef.current;
+
+    if (!activeToken || !activeTemplate) {
       addLog('error', 'Token do bot ou template não disponível. Abortando.');
       return;
     }
 
-    addLog('info', `Iniciando fila de ${queue.length} envios.`);
-    addLog('debug', `Delay entre envios: ${delay}s | Limite por grupo/dia: ${maxPerGroup}`);
-    addLog('debug', `Token: ${token.slice(0, 10)}...${token.slice(-4)}`);
+    const q = queueRef.current;
+    addLog('info', `Iniciando fila de ${q.length} envios.`);
+    addLog('debug', `Delay entre envios: ${delayRef.current}s | Limite por grupo/dia: ${maxPerGroupRef.current}`);
+    addLog('debug', `Token: ${activeToken.slice(0, 10)}...${activeToken.slice(-4)}`);
 
-    for (let i = idxRef.current; i < queue.length; i++) {
+    for (let i = idxRef.current; i < queueRef.current.length; i++) {
       if (!runningRef.current) {
         addLog('warn', 'Envio interrompido pelo usuário.');
         return;
       }
 
-      const { link, group } = queue[i];
+      const token = tokenRef.current;
+      const template = currentTemplateRef.current;
+      if (!token || !template) {
+        addLog('error', 'Token do bot ou template não disponível. Abortando.');
+        return;
+      }
+
+      const { link, group } = queueRef.current[i];
       idxRef.current = i;
       setIdx(i);
       const label = `${link.title || link.url} → ${group.name}`;
       setCurrentLabel(label);
 
-      // Check daily limit
-      const countToday = getCount(group.id);
+      // Check daily limit — sempre com o valor mais atual do contador e do limite
+      const countToday = getCountRef.current(group.id);
+      const maxPerGroup = maxPerGroupRef.current;
       if (countToday >= maxPerGroup) {
-        addLog('warn', `[${i + 1}/${queue.length}] PULADO: ${group.name} no limite (${countToday}/${maxPerGroup})`);
-        await logSend(link.id, group.id, currentTemplate.id, '', 'skipped');
+        addLog('warn', `[${i + 1}/${queueRef.current.length}] PULADO: ${group.name} no limite (${countToday}/${maxPerGroup})`);
+        await logSend(link.id, group.id, template.id, '', 'skipped');
         continue;
       }
 
-      const messageText = buildMessage(link, currentTemplate);
-      addLog('info', `[${i + 1}/${queue.length}] Enviando: ${label}`);
+      const messageText = buildMessage(link, template);
+      addLog('info', `[${i + 1}/${queueRef.current.length}] Enviando: ${label}`);
       addLog('debug', `Chat ID: ${group.telegram_chat_id} | Tem imagem: ${link.image_url ? 'sim' : 'não'}`);
 
       let sentOk = false;
@@ -217,7 +265,7 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
             addLog('success', `  -> Texto enviado com sucesso (fallback).`);
           } else {
             addLog('error', `  -> Texto também falhou: ${textResult.error}`);
-            await logSend(link.id, group.id, currentTemplate.id, messageText, 'failed');
+            await logSend(link.id, group.id, template.id, messageText, 'failed');
           }
         }
       } else {
@@ -228,19 +276,20 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
           addLog('success', `  -> Mensagem de texto enviada com sucesso.`);
         } else {
           addLog('error', `  -> Falhou: ${textResult.error}`);
-          await logSend(link.id, group.id, currentTemplate.id, messageText, 'failed');
+          await logSend(link.id, group.id, template.id, messageText, 'failed');
         }
       }
 
       if (sentOk) {
-        await logSend(link.id, group.id, currentTemplate.id, messageText, 'sent');
-        refreshCounts();
+        await logSend(link.id, group.id, template.id, messageText, 'sent');
+        await refreshCounts();
       }
 
-      // Wait between sends
-      if (i + 1 < queue.length && runningRef.current) {
-        addLog('info', `Aguardando ${delay}s antes do próximo envio...`);
-        await sleepWithCountdown(delay);
+      // Wait between sends — usa o delay atual, não o de quando o loop começou
+      if (i + 1 < queueRef.current.length && runningRef.current) {
+        const currentDelay = delayRef.current;
+        addLog('info', `Aguardando ${currentDelay}s antes do próximo envio...`);
+        await sleepWithCountdown(currentDelay);
       }
     }
 
