@@ -105,7 +105,9 @@ export function SendPage() {
 
   function buildMessage(link: AffiliateLink, template: MessageTemplate | undefined): string {
     if (!template) return link.url;
-    return template.content.replace(/\{link\}/g, link.url);
+    return template.content
+      .replace(/\{link\}/g, link.url)
+      .replace(/\{nomeProduto\}/g, link.title || '');
   }
 
   function sleepWithCountdown(seconds: number): Promise<void> {
