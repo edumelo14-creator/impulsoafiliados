@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import {
   Send,
   Image as ImageIcon,
@@ -18,260 +18,76 @@ import {
   Terminal,
   XCircle,
   Wifi,
+  Pencil,
 } from 'lucide-react';
 import { Card, StatusBadge } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import {
-  useLinks,
-  useGroups,
-  useTemplates,
-  useSettings,
-  useSendCountToday,
-  useSendLog,
-  logSend,
-} from '@/hooks/useData';
-import { sendPhoto, sendMessage } from '@/lib/telegram';
+import { useSendQueue } from '@/contexts/SendQueueContext';
+import { supabase } from '@/lib/supabase';
 import { formatDuration, timeAgo, formatBRL } from '@/lib/format';
-import type { AffiliateLink, WhatsappGroup, MessageTemplate } from '@/lib/supabase';
-
-interface LogEntry {
-  id: string;
-  time: string;
-  level: 'info' | 'success' | 'error' | 'warn' | 'debug';
-  message: string;
-}
+import type { MessageTemplate } from '@/lib/supabase';
 
 export function SendPage() {
-  const { data: links } = useLinks();
-  const { data: groups } = useGroups();
-  const { data: templates } = useTemplates();
-  const { data: logs, refetch: refetchLogs } = useSendLog(10);
-  const { settings } = useSettings();
-  const { getCount, refresh: refreshCounts } = useSendCountToday();
+  const {
+    links,
+    groups,
+    templates,
+    refetchTemplates,
+    logs,
+    refetchLogs,
+    token,
+    delay,
+    maxPerGroup,
+    templateId,
+    setTemplateId,
+    currentTemplate,
+    queue,
+    idx,
+    autoMode,
+    countdown,
+    currentLabel,
+    logEntries,
+    clearLogEntries,
+    getCount,
+    buildMessage,
+    handleStart,
+    handleStop,
+    handleReset,
+    handleTestSend,
+  } = useSendQueue();
 
-  const [templateId, setTemplateId] = useState('');
-  const [autoMode, setAutoMode] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
-  const [currentLabel, setCurrentLabel] = useState('');
+  const [editingTemplate, setEditingTemplate] = useState(false);
+  const [draftContent, setDraftContent] = useState('');
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
-  const runningRef = useRef(false);
-  const idxRef = useRef(0);
-
-  const token = settings?.telegram_bot_token ?? null;
-  const delay = settings?.delay_seconds ?? 120;
-  const maxPerGroup = settings?.max_sends_per_group_per_day ?? 3;
-
-  // Auto-refresh when idle
-  useEffect(() => {
-    if (autoMode) return;
-    const interval = setInterval(() => {
-      refetchLogs();
-      refreshCounts();
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [autoMode, refetchLogs, refreshCounts]);
-
-  useEffect(() => {
-    if (templates && templates.length > 0 && !templateId) {
-      const def = templates.find((t) => t.is_default) ?? templates[0];
-      setTemplateId(def.id);
-    }
-  }, [templates, templateId]);
-
-  const queue = useMemo(() => {
-    const activeLinks = (links ?? []).filter((l) => l.status !== 'sent');
-    const sendableGroups = (groups ?? []).filter(
-      (g) => g.status === 'active' && g.telegram_chat_id,
-    );
-    const items: { link: AffiliateLink; group: WhatsappGroup }[] = [];
-    for (const link of activeLinks) {
-      for (const group of sendableGroups) {
-        items.push({ link, group });
-      }
-    }
-    return items;
-  }, [links, groups]);
-
-  const currentTemplate = (templates ?? []).find((t) => t.id === templateId) ??
-    (templates ?? []).find((t) => t.is_default) ??
-    (templates ?? [])[0];
-
-  function addLog(level: LogEntry['level'], message: string) {
-    const id = Math.random().toString(36).slice(2);
-    const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setLogEntries((prev) => [{ id, time, level, message }, ...prev].slice(0, 80));
+  function startEditTemplate() {
+    if (!currentTemplate) return;
+    setDraftContent(currentTemplate.content);
+    setEditingTemplate(true);
   }
 
-  function buildMessage(link: AffiliateLink, template: MessageTemplate | undefined): string {
-    if (!template) return link.url;
-    return template.content
-      .replace(/\{link\}/g, link.url)
-      .replace(/\{nomeProduto\}/g, link.title || '');
+  function cancelEditTemplate() {
+    setEditingTemplate(false);
+    setDraftContent('');
   }
 
-  function sleepWithCountdown(seconds: number): Promise<void> {
-    return new Promise((resolve) => {
-      let remaining = seconds;
-      setCountdown(remaining);
-      const interval = setInterval(() => {
-        if (!runningRef.current) {
-          clearInterval(interval);
-          setCountdown(0);
-          resolve();
-          return;
-        }
-        remaining -= 1;
-        setCountdown(remaining);
-        if (remaining <= 0) {
-          clearInterval(interval);
-          setCountdown(0);
-          resolve();
-        }
-      }, 1000);
-    });
-  }
-
-  async function processQueue() {
-    if (!token || !currentTemplate) {
-      addLog('error', 'Token do bot ou template não disponível. Abortando.');
+  async function saveTemplate() {
+    if (!currentTemplate) return;
+    setSavingTemplate(true);
+    const { error } = await supabase
+      .from('message_templates')
+      .update({ content: draftContent })
+      .eq('id', currentTemplate.id);
+    setSavingTemplate(false);
+    if (error) {
+      window.alert(`Erro ao salvar template: ${error.message}`);
       return;
     }
-
-    addLog('info', `Iniciando fila de ${queue.length} envios.`);
-    addLog('debug', `Delay entre envios: ${delay}s | Limite por grupo/dia: ${maxPerGroup}`);
-    addLog('debug', `Token: ${token.slice(0, 10)}...${token.slice(-4)}`);
-
-    for (let i = idxRef.current; i < queue.length; i++) {
-      if (!runningRef.current) {
-        addLog('warn', 'Envio interrompido pelo usuário.');
-        return;
-      }
-
-      const { link, group } = queue[i];
-      idxRef.current = i;
-      const label = `${link.title || link.url} → ${group.name}`;
-      setCurrentLabel(label);
-
-      // Check daily limit
-      const countToday = getCount(group.id);
-      if (countToday >= maxPerGroup) {
-        addLog('warn', `[${i + 1}/${queue.length}] PULADO: ${group.name} no limite (${countToday}/${maxPerGroup})`);
-        await logSend(link.id, group.id, currentTemplate.id, '', 'skipped');
-        continue;
-      }
-
-      const messageText = buildMessage(link, currentTemplate);
-      addLog('info', `[${i + 1}/${queue.length}] Enviando: ${label}`);
-      addLog('debug', `Chat ID: ${group.telegram_chat_id} | Tem imagem: ${link.image_url ? 'sim' : 'não'}`);
-
-      let sentOk = false;
-      let sentVia = '';
-
-      if (link.image_url) {
-        addLog('debug', `Tentando sendPhoto com imagem...`);
-        const result = await sendPhoto(token, group.telegram_chat_id!, link.image_url, messageText);
-        if (result.ok) {
-          sentOk = true;
-          sentVia = 'foto';
-          addLog('success', `  -> Foto enviada com sucesso.`);
-        } else {
-          addLog('warn', `  -> sendPhoto falhou: ${result.error}. Tentando texto...`);
-          const textResult = await sendMessage(token, group.telegram_chat_id!, messageText);
-          if (textResult.ok) {
-            sentOk = true;
-            sentVia = 'texto (foto falhou)';
-            addLog('success', `  -> Texto enviado com sucesso (fallback).`);
-          } else {
-            addLog('error', `  -> Texto também falhou: ${textResult.error}`);
-            await logSend(link.id, group.id, currentTemplate.id, messageText, 'failed');
-          }
-        }
-      } else {
-        addLog('debug', `Sem imagem — enviando sendMessage...`);
-        const textResult = await sendMessage(token, group.telegram_chat_id!, messageText);
-        if (textResult.ok) {
-          sentOk = true;
-          sentVia = 'texto';
-          addLog('success', `  -> Mensagem de texto enviada com sucesso.`);
-        } else {
-          addLog('error', `  -> Falhou: ${textResult.error}`);
-          await logSend(link.id, group.id, currentTemplate.id, messageText, 'failed');
-        }
-      }
-
-      if (sentOk) {
-        await logSend(link.id, group.id, currentTemplate.id, messageText, 'sent');
-        refreshCounts();
-      }
-
-      // Wait between sends
-      if (i + 1 < queue.length && runningRef.current) {
-        addLog('info', `Aguardando ${delay}s antes do próximo envio...`);
-        await sleepWithCountdown(delay);
-      }
-    }
-
-    if (runningRef.current) {
-      addLog('success', 'Fila concluída! Todos os envios processados.');
-    }
-    runningRef.current = false;
-    setAutoMode(false);
-    setCurrentLabel('');
-    refetchLogs();
-    refreshCounts();
+    setEditingTemplate(false);
+    refetchTemplates();
   }
 
-  function handleStart() {
-    if (!token) {
-      addLog('error', 'Sem token do bot. Configure o bot nas Configurações.');
-      return;
-    }
-    if (queue.length === 0) {
-      addLog('error', 'Fila vazia. Verifique links e grupos.');
-      return;
-    }
-    runningRef.current = true;
-    setAutoMode(true);
-    setLogEntries([]);
-    addLog('info', '=== Iniciando envios ===');
-    processQueue();
-  }
-
-  function handleStop() {
-    runningRef.current = false;
-    setAutoMode(false);
-    setCountdown(0);
-    addLog('warn', 'Parada solicitada. O envio atual será interrompido.');
-  }
-
-  function handleReset() {
-    idxRef.current = 0;
-    setLogEntries([]);
-    setCurrentLabel('');
-    setCountdown(0);
-  }
-
-  async function handleTestSend() {
-    if (!token || !groups || groups.length === 0) {
-      addLog('error', 'Sem token ou sem grupos para testar.');
-      return;
-    }
-    const group = groups.find((g) => g.telegram_chat_id);
-    if (!group) {
-      addLog('error', 'Nenhum grupo com Chat ID configurado.');
-      return;
-    }
-    addLog('info', `Teste: enviando mensagem de teste para ${group.name}...`);
-    const result = await sendMessage(token, group.telegram_chat_id!, 'Teste de conexão do bot');
-    if (result.ok) {
-      addLog('success', `Teste OK! Mensagem enviada para ${group.name}.`);
-    } else {
-      addLog('error', `Teste FALHOU: ${result.error}`);
-    }
-  }
-
-  const current = queue[idxRef.current];
+  const current = queue[idx];
 
   if (!links || !groups || !templates) {
     return <LoadingState />;
@@ -300,7 +116,7 @@ export function SendPage() {
   const sentCount = logEntries.filter((l) => l.level === 'success').length;
   const errorCount = logEntries.filter((l) => l.level === 'error').length;
   const warnCount = logEntries.filter((l) => l.level === 'warn').length;
-  const progressPct = autoMode && queue.length > 0 ? ((idxRef.current + 1) / queue.length) * 100 : 0;
+  const progressPct = autoMode && queue.length > 0 ? ((idx + 1) / queue.length) * 100 : 0;
 
   return (
     <div className="space-y-6">
@@ -332,12 +148,18 @@ export function SendPage() {
           </div>
         </div>
 
+        {autoMode && (
+          <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-success-600">
+            <Loader2 size={13} className="animate-spin" /> Rodando em segundo plano — continua mesmo se você trocar de página.
+          </p>
+        )}
+
         {/* Progress bar */}
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between text-xs">
             <span className="font-semibold text-ink-600">Progresso</span>
             <span className="text-ink-400">
-              {autoMode ? `${idxRef.current + 1}/${queue.length}` : `${queue.length} na fila`}
+              {autoMode ? `${idx + 1}/${queue.length}` : `${queue.length} na fila`}
             </span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-ink-100">
@@ -355,7 +177,7 @@ export function SendPage() {
           <StatusBox label="Sucesso" value={sentCount} color="success" icon={<CheckCircle2 size={16} />} />
           <StatusBox label="Erros" value={errorCount} color="error" icon={<AlertTriangle size={16} />} />
           <StatusBox label="Avisos" value={warnCount} color="warning" icon={<Clock size={16} />} />
-          <StatusBox label="Na fila" value={queue.length - idxRef.current - (autoMode ? 1 : 0)} color="primary" icon={<Zap size={16} />} />
+          <StatusBox label="Na fila" value={queue.length - idx - (autoMode ? 1 : 0)} color="primary" icon={<Zap size={16} />} />
         </div>
 
         {/* Countdown timer */}
@@ -393,11 +215,28 @@ export function SendPage() {
       </Card>
 
       {/* Template selector + Preview */}
-      <Card title="Template de mensagem" subtitle="Escolha qual modelo usar nos envios">
+      <Card
+        title="Template de mensagem"
+        subtitle="Escolha qual modelo usar nos envios"
+        action={
+          currentTemplate && !editingTemplate ? (
+            <button
+              onClick={startEditTemplate}
+              disabled={autoMode}
+              className="flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-primary-700 disabled:opacity-50"
+            >
+              <Pencil size={14} /> Editar mensagem
+            </button>
+          ) : null
+        }
+      >
         <select
           value={templateId}
-          onChange={(e) => setTemplateId(e.target.value)}
-          disabled={autoMode}
+          onChange={(e) => {
+            setTemplateId(e.target.value);
+            setEditingTemplate(false);
+          }}
+          disabled={autoMode || editingTemplate}
           className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 text-sm text-ink-900 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:bg-ink-50"
         >
           {(templates ?? []).map((t: MessageTemplate) => (
@@ -406,14 +245,38 @@ export function SendPage() {
             </option>
           ))}
         </select>
-        {current && currentTemplate && (
-          <div className="mt-3 rounded-xl bg-[#e5ddd5] p-4">
-            <div className="ml-auto max-w-[90%] rounded-lg rounded-tr-sm bg-[#dcf8c6] p-3 shadow-sm">
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-800">
-                {buildMessage(current.link, currentTemplate)}
-              </p>
+
+        {editingTemplate ? (
+          <div className="mt-3 space-y-2">
+            <textarea
+              value={draftContent}
+              onChange={(e) => setDraftContent(e.target.value)}
+              rows={6}
+              className="w-full rounded-xl border border-ink-200 bg-white px-3 py-2.5 font-mono text-sm text-ink-900 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+            />
+            <p className="text-xs text-ink-400">
+              Use <code className="rounded bg-ink-100 px-1 py-0.5 font-mono">{'{link}'}</code> para o link do produto e{' '}
+              <code className="rounded bg-ink-100 px-1 py-0.5 font-mono">{'{nomeProduto}'}</code> para o nome do produto.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={cancelEditTemplate} disabled={savingTemplate}>
+                Cancelar
+              </Button>
+              <Button size="sm" onClick={saveTemplate} disabled={savingTemplate || !draftContent.trim()}>
+                {savingTemplate ? 'Salvando...' : 'Salvar template'}
+              </Button>
             </div>
           </div>
+        ) : (
+          current && currentTemplate && (
+            <div className="mt-3 rounded-xl bg-[#e5ddd5] p-4">
+              <div className="ml-auto max-w-[90%] rounded-lg rounded-tr-sm bg-[#dcf8c6] p-3 shadow-sm">
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink-800">
+                  {buildMessage(current.link, currentTemplate)}
+                </p>
+              </div>
+            </div>
+          )
         )}
       </Card>
 
@@ -421,7 +284,7 @@ export function SendPage() {
       {current && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <Card title="Produto atual" subtitle={`Item ${idxRef.current + 1} de ${queue.length}`}>
+            <Card title="Produto atual" subtitle={`Item ${idx + 1} de ${queue.length}`}>
               <div className="relative aspect-video overflow-hidden rounded-xl bg-ink-100">
                 {current.link.image_url ? (
                   <img src={current.link.image_url} alt={current.link.title} className="h-full w-full object-cover" />
@@ -502,7 +365,7 @@ export function SendPage() {
         action={
           logEntries.length > 0 && !autoMode ? (
             <button
-              onClick={() => setLogEntries([])}
+              onClick={clearLogEntries}
               className="flex items-center gap-1 text-xs font-semibold text-ink-400 hover:text-ink-600"
             >
               <XCircle size={14} /> Limpar
@@ -550,7 +413,7 @@ export function SendPage() {
         subtitle="Atualiza automaticamente · Últimos 10"
         action={
           <button
-            onClick={() => { refetchLogs(); refreshCounts(); }}
+            onClick={() => { refetchLogs(); }}
             className="flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-primary-700"
           >
             <RefreshCw size={14} /> Atualizar

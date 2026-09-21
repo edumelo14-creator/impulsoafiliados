@@ -13,6 +13,7 @@ import { Visitas } from '@/pages/Visitas';
 import { Login } from '@/pages/Login';
 import { useLinks, useGroups } from '@/hooks/useData';
 import { useAuth } from '@/hooks/useAuth';
+import { SendQueueProvider } from '@/contexts/SendQueueContext';
 import { LogOut } from 'lucide-react';
 
 const pageInfo: Record<PageId, { title: string; subtitle: string }> = {
@@ -106,6 +107,7 @@ function App() {
   }
 
   return (
+    <SendQueueProvider>
     <div className="min-h-screen bg-ink-100">
       <Sidebar
         current={page}
@@ -162,6 +164,7 @@ function App() {
       <MobileNav current={page} onNavigate={navigate} />
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </div>
+    </SendQueueProvider>
   );
 }
 
