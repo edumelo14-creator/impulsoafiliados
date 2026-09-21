@@ -52,6 +52,7 @@ function TemplateCard({ template: t, onChanged }: { template: MessageTemplate; o
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(t.name);
   const [draftContent, setDraftContent] = useState(t.content);
+  const [draftSendImage, setDraftSendImage] = useState(t.send_image);
   const [saving, setSaving] = useState(false);
   const previewUrl = 'https://shope.ee/SEU_LINK_AQUI';
   const previewText = t.content
@@ -81,6 +82,7 @@ function TemplateCard({ template: t, onChanged }: { template: MessageTemplate; o
   function startEdit() {
     setDraftName(t.name);
     setDraftContent(t.content);
+    setDraftSendImage(t.send_image);
     setEditing(true);
   }
 
@@ -92,7 +94,7 @@ function TemplateCard({ template: t, onChanged }: { template: MessageTemplate; o
     setSaving(true);
     const { error } = await supabase
       .from('message_templates')
-      .update({ name: draftName, content: draftContent })
+      .update({ name: draftName, content: draftContent, send_image: draftSendImage })
       .eq('id', t.id);
     setSaving(false);
     if (error) {
@@ -120,6 +122,11 @@ function TemplateCard({ template: t, onChanged }: { template: MessageTemplate; o
           {t.is_default && (
             <span className="flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-[11px] font-semibold text-primary-600">
               <Star size={11} className="fill-primary-500 text-primary-500" /> Padrão
+            </span>
+          )}
+          {!editing && !t.send_image && (
+            <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-semibold text-ink-500">
+              Sem imagem
             </span>
           )}
         </div>
@@ -172,6 +179,16 @@ function TemplateCard({ template: t, onChanged }: { template: MessageTemplate; o
             />
           </label>
 
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-600">
+            <input
+              type="checkbox"
+              checked={draftSendImage}
+              onChange={(e) => setDraftSendImage(e.target.checked)}
+              className="h-4 w-4 rounded border-ink-300 text-primary-600 focus:ring-primary-500/30"
+            />
+            Enviar imagem do produto junto com a mensagem
+          </label>
+
           <div>
             <span className="mb-1.5 block text-xs font-semibold text-ink-600">Preview</span>
             <div className="rounded-xl bg-[#e5ddd5] p-3">
@@ -216,6 +233,7 @@ function TemplateCard({ template: t, onChanged }: { template: MessageTemplate; o
 function AddTemplateModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState('');
   const [content, setContent] = useState('');
+  const [sendImage, setSendImage] = useState(true);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -232,6 +250,7 @@ function AddTemplateModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
       name,
       content,
       is_default: false,
+      send_image: sendImage,
     });
     setSaving(false);
     if (error) setErr(error.message);
@@ -276,6 +295,16 @@ function AddTemplateModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
               Dica: adicione {'{link}'} onde o link do produto deve aparecer na mensagem.
             </p>
           )}
+
+          <label className="flex items-center gap-2 text-xs font-medium text-ink-600">
+            <input
+              type="checkbox"
+              checked={sendImage}
+              onChange={(e) => setSendImage(e.target.checked)}
+              className="h-4 w-4 rounded border-ink-300 text-primary-600 focus:ring-primary-500/30"
+            />
+            Enviar imagem do produto junto com a mensagem
+          </label>
 
           {previewText && (
             <div>

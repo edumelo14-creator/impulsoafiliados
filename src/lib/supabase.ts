@@ -47,6 +47,7 @@ export interface MessageTemplate {
   name: string;
   content: string;
   is_default: boolean;
+  send_image: boolean;
   created_at: string;
 }
 

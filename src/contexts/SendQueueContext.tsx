@@ -246,14 +246,15 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
       }
 
       const messageText = buildMessage(link, template);
+      const shouldSendImage = template.send_image && !!link.image_url;
       addLog('info', `[${i + 1}/${queueRef.current.length}] Enviando: ${label}`);
-      addLog('debug', `Chat ID: ${group.telegram_chat_id} | Tem imagem: ${link.image_url ? 'sim' : 'não'}`);
+      addLog('debug', `Chat ID: ${group.telegram_chat_id} | Tem imagem: ${link.image_url ? 'sim' : 'não'} | Enviar imagem: ${template.send_image ? 'sim' : 'não'}`);
 
       let sentOk = false;
 
-      if (link.image_url) {
+      if (shouldSendImage) {
         addLog('debug', `Tentando sendPhoto com imagem...`);
-        const result = await sendPhoto(token, group.telegram_chat_id!, link.image_url, messageText);
+        const result = await sendPhoto(token, group.telegram_chat_id!, link.image_url!, messageText);
         if (result.ok) {
           sentOk = true;
           addLog('success', `  -> Foto enviada com sucesso.`);
@@ -269,7 +270,7 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
           }
         }
       } else {
-        addLog('debug', `Sem imagem — enviando sendMessage...`);
+        addLog('debug', template.send_image ? `Sem imagem — enviando sendMessage...` : `Envio de imagem desativado no template — enviando só texto...`);
         const textResult = await sendMessage(token, group.telegram_chat_id!, messageText);
         if (textResult.ok) {
           sentOk = true;
