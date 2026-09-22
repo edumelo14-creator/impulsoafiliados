@@ -36,6 +36,22 @@ interface QueueItem {
   group: WhatsappGroup;
 }
 
+// Guarda a posição da fila no localStorage para sobreviver a um F5 /
+// fechar e reabrir a aba — sem isso, o progresso vivia só em memória do
+// React e qualquer recarregamento de página fazia a fila "voltar pro
+// início" mesmo sem o usuário clicar em Reiniciar.
+const IDX_STORAGE_KEY = 'impulso_send_queue_idx';
+
+function readSavedIdx(): number {
+  try {
+    const raw = localStorage.getItem(IDX_STORAGE_KEY);
+    const n = raw ? parseInt(raw, 10) : 0;
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
+
 interface SendQueueContextValue {
   links: AffiliateLink[] | null;
   groups: WhatsappGroup[] | null;
@@ -87,10 +103,19 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
   const [countdown, setCountdown] = useState(0);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [currentLabel, setCurrentLabel] = useState('');
-  const [idx, setIdx] = useState(0);
+  const [idx, setIdx] = useState<number>(() => readSavedIdx());
 
   const runningRef = useRef(false);
-  const idxRef = useRef(0);
+  const idxRef = useRef<number>(readSavedIdx());
+
+  // Mantém o localStorage sincronizado com a posição atual da fila.
+  useEffect(() => {
+    try {
+      localStorage.setItem(IDX_STORAGE_KEY, String(idx));
+    } catch {
+      // localStorage indisponível (modo privado etc.) — segue só em memória.
+    }
+  }, [idx]);
 
   const token = settings?.telegram_bot_token ?? null;
   const delay = settings?.delay_seconds ?? 120;
@@ -296,6 +321,10 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
 
     if (runningRef.current) {
       addLog('success', 'Fila concluída! Todos os envios processados.');
+      // Avança a posição pra depois do fim da fila, senão um próximo
+      // "Iniciar envios" ficaria reprocessando só o último item pra sempre.
+      idxRef.current = queueRef.current.length;
+      setIdx(queueRef.current.length);
     }
     runningRef.current = false;
     setAutoMode(false);
@@ -313,6 +342,13 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
       addLog('error', 'Fila vazia. Verifique links e grupos.');
       return;
     }
+    // Se a fila anterior já tinha terminado (posição no fim ou além, ex.:
+    // depois de "Fila concluída" ou se a fila ficou menor), começa de novo
+    // do início em vez de não processar nada.
+    if (idxRef.current >= queue.length) {
+      idxRef.current = 0;
+      setIdx(0);
+    }
     runningRef.current = true;
     setAutoMode(true);
     setLogEntries([]);
@@ -328,8 +364,9 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
   }
 
   function handleReset() {
-    idxRef.current = 0;
-    setIdx(0);
+    // Não volta pro início da fila — só limpa o log/painel. A posição
+    // (idxRef/idx) é mantida, então o próximo "Iniciar envios" continua
+    // de onde parou em vez de reprocessar os itens já enviados.
     setLogEntries([]);
     setCurrentLabel('');
     setCountdown(0);
