@@ -135,6 +135,7 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
   const currentTemplateRef = useRef<MessageTemplate | undefined>(undefined);
   const getCountRef = useRef(getCount);
   const queueRef = useRef<QueueItem[]>([]);
+  const groupsRef = useRef<WhatsappGroup[]>([]);
 
   useEffect(() => {
     tokenRef.current = token;
@@ -148,6 +149,9 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     getCountRef.current = getCount;
   }, [getCount]);
+  useEffect(() => {
+    groupsRef.current = groups ?? [];
+  }, [groups]);
 
   // Atualiza log/contadores periodicamente quando não está enviando
   useEffect(() => {
@@ -203,6 +207,20 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
     return template.content
       .replace(/\{link\}/g, link.url)
       .replace(/\{nomeProduto\}/g, link.title || '');
+  }
+
+  // Verifica se TODOS os grupos ativos com Chat ID já bateram o limite
+  // diário de envios — usado pra decidir se vale a pena pausar a fila em
+  // vez de continuar passando por cada item restante só pra marcar como
+  // "pulado" (o que gerava centenas de linhas inúteis no histórico).
+  function allGroupsAtDailyLimit(): boolean {
+    const sendableGroups = groupsRef.current.filter(
+      (g) => g.status === 'active' && g.telegram_chat_id,
+    );
+    if (sendableGroups.length === 0) return false;
+    return sendableGroups.every(
+      (g) => getCountRef.current(g.id) >= maxPerGroupRef.current,
+    );
   }
 
   function sleepWithCountdown(seconds: number): Promise<void> {
@@ -265,6 +283,23 @@ export function SendQueueProvider({ children }: { children: ReactNode }) {
       const countToday = getCountRef.current(group.id);
       const maxPerGroup = maxPerGroupRef.current;
       if (countToday >= maxPerGroup) {
+        if (allGroupsAtDailyLimit()) {
+          // Todos os grupos bateram o limite hoje — não faz sentido continuar
+          // passando pelo resto da fila só pra marcar tudo como "pulado".
+          // Pausa aqui mesmo (idx já está em i, não avança) e retoma exatamente
+          // deste ponto quando o ciclo for reativado (no mesmo dia ou no
+          // seguinte, quando os limites diários zerarem).
+          addLog(
+            'warn',
+            `Todos os grupos atingiram o limite diário de envios (${maxPerGroup}/dia). Fila pausada — vai continuar de onde parou quando você reativar.`,
+          );
+          runningRef.current = false;
+          setAutoMode(false);
+          setCurrentLabel('');
+          refetchLogs();
+          refreshCounts();
+          return;
+        }
         addLog('warn', `[${i + 1}/${queueRef.current.length}] PULADO: ${group.name} no limite (${countToday}/${maxPerGroup})`);
         await logSend(link.id, group.id, template.id, '', 'skipped');
         continue;
